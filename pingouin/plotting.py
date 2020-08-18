@@ -381,7 +381,7 @@ def plot_paired(data=None, dv=None, within=None, subject=None, order=None,
                 boxplot=True, boxplot_in_front=False,
                 figsize=(4, 4), dpi=100, ax=None,
                 colors=['green', 'grey', 'indianred'],
-                pointplot_kwargs={'scale': .6, 'markers': '.'},
+                pointplot_kwargs={'scale': .6, 'markers': '.', 'alpha': 1},
                 boxplot_kwargs={'color': 'lightslategrey', 'width': .2}):
     """
     Paired plot.
@@ -470,11 +470,21 @@ def plot_paired(data=None, dv=None, within=None, subject=None, order=None,
         >>> df = df.query("Group == 'Control'")
         >>> ax = pg.plot_paired(data=df, dv='Scores', within='Time',
         ...                     subject='Subject', boxplot_in_front=True)
+
+    With automatic scaling/alpha for large amounts of subjects for pointplot:
+
+    .. plot::
+
+        >>> import pingouin as pg
+        >>> df = pg.read_dataset('mixed_anova').query("Time != 'January'")
+        >>> df = df.query("Group == 'Control'")
+        >>> ax = pg.plot_paired(data=df, dv='Scores', within='Time',
+        ...                     subject='Subject', boxplot_in_front=True)
     """
     from pingouin.utils import _check_dataframe, remove_rm_na
 
     # Update default kwargs with specified inputs
-    _pointplot_kwargs = {'scale': .6, 'markers': '.'}
+    _pointplot_kwargs = {'scale': .6, 'markers': '.', 'alpha': 1}
     _pointplot_kwargs.update(pointplot_kwargs)
     _boxplot_kwargs = {'color': 'lightslategrey', 'width': .2}
     _boxplot_kwargs.update(boxplot_kwargs)
@@ -506,6 +516,36 @@ def plot_paired(data=None, dv=None, within=None, subject=None, order=None,
     else:
         assert len(order) == 2, 'Order must have exactly two elements.'
 
+    # Set pointplot scale depending on num. of subjects, if set to auto
+    if _pointplot_kwargs['scale'] == 'auto':
+        # Set linear scaling parameters
+        maxscl, minscl, maxsclat, minsclat = .6, .05, 50, 750
+        # Scale scale linearly from minsclat to maxsclat
+        _pointplot_kwargs['scale'] = (
+            maxscl if subj.size < maxsclat
+            else (maxscl - (maxscl - minscl)
+                  / (minsclat - maxsclat) * (subj.size - maxsclat)
+            )
+        )
+
+    # Set pointplot alpha depending on num. of subjects, if set to auto
+    if _pointplot_kwargs['alpha'] == 'auto':
+        # Pop from dict
+        _ = _pointplot_kwargs.pop('alpha')
+        # Set linear scaling parameters
+        maxalp, minalp, maxalpat, minalpat = 1, .5, 50, 750
+        # Scale alpha linearly from minalpat to maxalpat
+        pp_alpha = (
+            maxalp if subj.size < maxalpat
+            else (maxalp - (maxalp - minalp)
+                  / (minalpat - maxalpat) * (subj.size - maxalpat)
+            )
+        )
+    else:  # else just take the input value without scaling
+        pp_alpha = _pointplot_kwargs.pop('alpha')  # Extract from kwargs
+    # Set alpha to seaborn pointplot kws dict
+    _pointplot_kwargs['plot_kws'] = {'alpha': pp_alpha}
+
     # Start the plot
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=figsize, dpi=dpi)
@@ -524,6 +564,11 @@ def plot_paired(data=None, dv=None, within=None, subject=None, order=None,
         # Plot individual lines using Seaborn
         sns.pointplot(data=tmp, x=within, y=dv, order=order, color=color,
                       ax=ax, **_pointplot_kwargs)
+
+    # Set alpha of pointplot markers and lines
+    if pp_alpha != 1.:
+        _ = plt.setp(ax.collections, alpha=pp_alpha)  # Set marker alpha
+        _ = plt.setp(ax.lines, alpha=pp_alpha)  # Set line alpha
 
     if boxplot:
         sns.boxplot(data=data, x=within, y=dv, order=order, ax=ax,
