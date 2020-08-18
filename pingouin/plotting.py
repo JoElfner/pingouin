@@ -566,7 +566,7 @@ def plot_paired(data=None, dv=None, within=None, subject=None, order=None,
                       ax=ax, **_pointplot_kwargs)
 
     # Set alpha of pointplot markers and lines
-    if pp_alpha != 1.:
+    if pp_alpha != 1:
         _ = plt.setp(ax.collections, alpha=pp_alpha)  # Set marker alpha
         _ = plt.setp(ax.lines, alpha=pp_alpha)  # Set line alpha
 
